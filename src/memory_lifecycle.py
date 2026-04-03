@@ -295,8 +295,14 @@ def compress_project_memories(project: str, dry_run: bool = False) -> list[dict]
 # ============================================================
 
 def run_forgetting_cycle(project: str, dry_run: bool = False) -> list[dict]:
-    """Remove low-value memories. Three rules: threshold, contradictions, capacity."""
-    forgotten = []
+    """Archive low-value memories to cold storage. Never truly delete.
+
+    Facts below threshold, duplicates, and capacity overflows are moved to
+    an archive file (facts_archive.json) in the same directory. They remain
+    searchable for historical context but don't consume token budget or
+    clutter the active store.
+    """
+    archived = []
     project_dir = PROJECTS_DIR / project if project != "global" else GLOBAL_DIR
 
     for mem_type in MEMORY_TYPES + ["facts_db"]:
@@ -306,57 +312,56 @@ def run_forgetting_cycle(project: str, dry_run: bool = False) -> list[dict]:
 
         data = json.loads(store_file.read_text())
         memories = data.get("facts", data.get("memories", []))
-        to_remove = []
+        to_archive = []
 
         for i, mem in enumerate(memories):
             text = mem.get("fact", mem.get("text", ""))
             score = score_memory(text, mem)
 
-            # Rule 1: Below retention threshold
+            # Rule 1: Below retention threshold → archive
             if score.composite < RETENTION_THRESHOLD:
-                to_remove.append((i, "below_threshold", score.composite))
+                to_archive.append((i, "below_threshold", score.composite))
                 continue
 
-        # Rule 2: Duplicates (Jaccard similarity)
+        # Rule 2: Duplicates (Jaccard similarity) → archive the weaker one
         for i in range(len(memories)):
-            if any(idx == i for idx, _, _ in to_remove):
+            if any(idx == i for idx, _, _ in to_archive):
                 continue
             for j in range(i + 1, len(memories)):
-                if any(idx == j for idx, _, _ in to_remove):
+                if any(idx == j for idx, _, _ in to_archive):
                     continue
                 text_a = memories[i].get("fact", memories[i].get("text", ""))
                 text_b = memories[j].get("fact", memories[j].get("text", ""))
                 if _jaccard_similarity(text_a, text_b) > DUPLICATE_JACCARD_THRESHOLD:
-                    # Keep the one with higher score
                     score_a = score_memory(text_a, memories[i]).composite
                     score_b = score_memory(text_b, memories[j]).composite
                     victim = j if score_a >= score_b else i
-                    to_remove.append((victim, "duplicate", min(score_a, score_b)))
+                    to_archive.append((victim, "duplicate", min(score_a, score_b)))
 
-        # Rule 3: Capacity limit (keep top N)
-        if len(memories) - len(to_remove) > MAX_MEMORIES_PER_TYPE:
+        # Rule 3: Capacity limit → archive lowest-scoring overflow
+        if len(memories) - len(to_archive) > MAX_MEMORIES_PER_TYPE:
             scored = []
-            remove_indices = {idx for idx, _, _ in to_remove}
+            archive_indices = {idx for idx, _, _ in to_archive}
             for i, mem in enumerate(memories):
-                if i not in remove_indices:
+                if i not in archive_indices:
                     text = mem.get("fact", mem.get("text", ""))
                     scored.append((i, score_memory(text, mem).composite))
             scored.sort(key=lambda x: x[1], reverse=True)
             for idx, sc in scored[MAX_MEMORIES_PER_TYPE:]:
-                to_remove.append((idx, "capacity_limit", sc))
+                to_archive.append((idx, "capacity_overflow", sc))
 
-        # Deduplicate removal list
+        # Deduplicate archive list
         seen = set()
-        unique_removals = []
-        for idx, reason, sc in to_remove:
+        unique_archives = []
+        for idx, reason, sc in to_archive:
             if idx not in seen:
                 seen.add(idx)
-                unique_removals.append((idx, reason, sc))
+                unique_archives.append((idx, reason, sc))
 
-        for idx, reason, sc in unique_removals:
+        for idx, reason, sc in unique_archives:
             mem = memories[idx]
             text = mem.get("fact", mem.get("text", ""))
-            forgotten.append({
+            archived.append({
                 "project": project, "type": mem_type,
                 "id": mem.get("id", "?"),
                 "text": text[:80],
@@ -364,21 +369,42 @@ def run_forgetting_cycle(project: str, dry_run: bool = False) -> list[dict]:
                 "score": round(sc, 3),
             })
 
-        if not dry_run and unique_removals:
-            remove_indices = {idx for idx, _, _ in unique_removals}
-            remaining = [m for i, m in enumerate(memories) if i not in remove_indices]
+        if not dry_run and unique_archives:
+            archive_indices = {idx for idx, _, _ in unique_archives}
+
+            # Move archived facts to cold storage (never delete)
+            archive_file = project_dir / "facts_archive.json"
+            if archive_file.exists():
+                archive_data = json.loads(archive_file.read_text())
+            else:
+                archive_data = {"project": project, "archived_facts": []}
+
+            for idx, reason, sc in unique_archives:
+                mem = memories[idx]
+                mem["_archived_at"] = datetime.now(timezone.utc).isoformat()
+                mem["_archive_reason"] = reason
+                mem["_archive_score"] = round(sc, 3)
+                archive_data["archived_facts"].append(mem)
+
+            archive_data["last_updated"] = datetime.now(timezone.utc).isoformat()
+            tmp = archive_file.with_suffix(".tmp")
+            tmp.write_text(json.dumps(archive_data, indent=2))
+            tmp.rename(archive_file)
+
+            # Remove from active store
+            remaining = [m for i, m in enumerate(memories) if i not in archive_indices]
             if "facts" in data:
                 data["facts"] = remaining
             else:
                 data["memories"] = remaining
-            data["last_forgotten"] = datetime.now(timezone.utc).isoformat()
+            data["last_archived"] = datetime.now(timezone.utc).isoformat()
             store_file.write_text(json.dumps(data, indent=2))
 
-            for item in forgotten:
+            for item in archived:
                 if item["type"] == mem_type:
-                    audit_log("forget", project, item["id"], item["reason"])
+                    audit_log("archive", project, item["id"], item["reason"])
 
-    return forgotten
+    return archived
 
 
 def _jaccard_similarity(text_a: str, text_b: str) -> float:
@@ -535,7 +561,7 @@ def consolidate(project: str, dry_run: bool = False) -> dict:
     # Step 3: Forgetting cycle
     log.info("Step 3: Forgetting cycle...")
     forgotten = run_forgetting_cycle(project, dry_run=dry_run)
-    log.info(f"  Forgot {len(forgotten)} memories")
+    log.info(f"  Archived {len(forgotten)} memories to cold storage")
 
     # Step 4: Compression
     log.info("Step 4: Compression...")
@@ -615,8 +641,8 @@ def main():
     elif cmd == "forget":
         results = run_forgetting_cycle(project or "global", dry_run)
         for r in results:
-            print(f"  ✕ [{r['type']}] {r['reason']} (score={r['score']}) — {r['text']}")
-        print(f"\n--- {len(results)} forgotten ---")
+            print(f"  → [{r['type']}] {r['reason']} (score={r['score']}) — {r['text']}")
+        print(f"\n--- {len(results)} archived to cold storage ---")
 
     elif cmd == "integrity":
         result = check_integrity(project or "global")
