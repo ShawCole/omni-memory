@@ -155,23 +155,17 @@ def extract_via_claude_cli(new_logs: str) -> dict | None:
         project_list=project_list,
     )
 
-    # Write to temp file to avoid shell escaping
-    prompt_file = OMNI_DIR / ".extraction_prompt.tmp"
-    prompt_file.write_text(prompt)
-
     try:
         result = subprocess.run(
             [
                 "/Users/ShawCole/.local/bin/claude", "-p",
-                f"Read the file {prompt_file} and follow its instructions exactly. Return ONLY valid JSON.",
+                prompt + "\n\nReturn ONLY valid JSON, nothing else.",
                 "--output-format", "text",
                 "--max-turns", "1",
-                "--allowedTools", "Read",
             ],
             capture_output=True, text=True, timeout=120,
             cwd=str(OMNI_DIR),
         )
-        prompt_file.unlink(missing_ok=True)
 
         if result.returncode != 0:
             log.error(f"Claude CLI failed (rc={result.returncode}): {result.stderr[:500]}")
@@ -197,7 +191,6 @@ def extract_via_claude_cli(new_logs: str) -> dict | None:
         return json.loads(text)
     except subprocess.TimeoutExpired:
         log.error("Claude CLI timed out (120s)")
-        prompt_file.unlink(missing_ok=True)
         return None
     except json.JSONDecodeError as e:
         log.error(f"Invalid JSON from Claude CLI: {e}")

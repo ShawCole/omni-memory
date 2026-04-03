@@ -39,10 +39,10 @@ GLOBAL_DIR = OMNI_DIR / "global"
 LOGS_DIR = OMNI_DIR / "logs"
 AUDIT_LOG = LOGS_DIR / "audit.jsonl"
 
-RETENTION_THRESHOLD = 0.4
-MAX_MEMORIES_PER_TYPE = 200
-STALE_DAYS = 60
-DUPLICATE_JACCARD_THRESHOLD = 0.7
+RETENTION_THRESHOLD = 0.5
+MAX_MEMORIES_PER_TYPE = 150
+STALE_DAYS = 45
+DUPLICATE_JACCARD_THRESHOLD = 0.65
 COMPRESSION_TOKEN_THRESHOLD = 40  # Compress memories longer than this
 
 MEMORY_TYPES = ["semantic", "episodic", "procedural"]
@@ -69,11 +69,11 @@ class RetentionScore:
     @property
     def composite(self) -> float:
         return (
-            self.durability * 0.30
-            + self.actionability * 0.25
-            + self.explicitness * 0.20
-            + self.recency * 0.15
-            + self.access_frequency * 0.10
+            self.durability * 0.25
+            + self.actionability * 0.20
+            + self.explicitness * 0.15
+            + self.recency * 0.25
+            + self.access_frequency * 0.15
         )
 
 
@@ -136,7 +136,7 @@ def score_memory(text: str, metadata: dict) -> RetentionScore:
     except (ValueError, TypeError):
         created_dt = datetime.now()
     age_days = (datetime.now() - created_dt).days
-    recency = max(0.1, 1.0 - (age_days / 90))
+    recency = max(0.05, 1.0 - (age_days / 45))
 
     # Access frequency: saturates at 10 accesses
     access_count = metadata.get("access_count", 0)
