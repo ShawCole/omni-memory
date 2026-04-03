@@ -195,14 +195,23 @@ def build_scoped_payload(projects: list[str], token_limit: int) -> str:
     return payload
 
 
-def increment_access(facts_file: Path, included_fact_ids: set):
-    """Increment access_count for facts that were used in a payload."""
+TIER_WEIGHTS = {"T0": 4, "T1": 3, "T2": 2, "T3": 1}
+
+
+def increment_access(facts_file: Path, included_fact_ids: set, tier: str = "T2"):
+    """Increment access_count for facts used in a payload, weighted by agent tier.
+
+    Higher-tier agents (GM=T0, PM=T1) give more weight to the facts they access,
+    making those facts harder to archive. A fact the GM reads regularly is inherently
+    more important than one only a worker touched.
+    """
+    weight = TIER_WEIGHTS.get(tier, 1)
     try:
         data = json.loads(facts_file.read_text())
         changed = False
         for fact in data.get("facts", []):
             if fact.get("id") in included_fact_ids:
-                fact["access_count"] = fact.get("access_count", 0) + 1
+                fact["access_count"] = fact.get("access_count", 0) + weight
                 changed = True
         if changed:
             facts_file.write_text(json.dumps(data, indent=2))
@@ -237,10 +246,10 @@ def build_agent_payload(agent_id: str) -> str:
 
     if memory_scope == "global" or (isinstance(memory_scope, list) and "global" in memory_scope and len(memory_scope) == 1):
         payload = build_global_payload(token_limit)
-        # Increment access counts for global facts
+        # Increment access counts for global facts, weighted by tier
         global_facts_path = OMNI_DIR / "global" / "facts_db.json"
         facts = load_facts(global_facts_path)
-        increment_access(global_facts_path, {f.get("id") for f in facts if f.get("id") is not None})
+        increment_access(global_facts_path, {f.get("id") for f in facts if f.get("id") is not None}, tier)
         return payload
 
     if isinstance(memory_scope, str):
@@ -250,10 +259,10 @@ def build_agent_payload(agent_id: str) -> str:
 
     payload = build_scoped_payload(projects, token_limit)
 
-    # Increment access counts for all included facts
+    # Increment access counts for all included facts, weighted by tier
     fact_groups = _collect_included_fact_ids(projects)
     for facts_path, fact_ids in fact_groups.items():
-        increment_access(facts_path, fact_ids)
+        increment_access(facts_path, fact_ids, tier)
 
     return payload
 

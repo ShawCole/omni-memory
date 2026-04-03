@@ -138,9 +138,10 @@ def score_memory(text: str, metadata: dict) -> RetentionScore:
     age_days = (datetime.now() - created_dt).days
     recency = max(0.05, 1.0 - (age_days / 45))
 
-    # Access frequency: saturates at 10 accesses
+    # Access frequency: weighted by agent tier (T0=+4, T1=+3, T2=+2, T3=+1)
+    # Saturates at 40 weighted accesses (~10 GM reads or ~20 specialist reads)
     access_count = metadata.get("access_count", 0)
-    access_frequency = min(1.0, access_count / 10)
+    access_frequency = min(1.0, access_count / 40)
 
     return RetentionScore(
         durability=round(durability, 3),
