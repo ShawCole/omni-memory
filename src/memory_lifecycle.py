@@ -40,7 +40,7 @@ LOGS_DIR = OMNI_DIR / "logs"
 AUDIT_LOG = LOGS_DIR / "audit.jsonl"
 
 RETENTION_THRESHOLD = 0.5
-MAX_MEMORIES_PER_TYPE = 150
+MAX_MEMORIES_PER_TYPE = 200  # Default fallback — each store's max_facts takes precedence
 STALE_DAYS = 45
 DUPLICATE_JACCARD_THRESHOLD = 0.65
 COMPRESSION_TOKEN_THRESHOLD = 40  # Compress memories longer than this
@@ -339,7 +339,9 @@ def run_forgetting_cycle(project: str, dry_run: bool = False) -> list[dict]:
                     to_archive.append((victim, "duplicate", min(score_a, score_b)))
 
         # Rule 3: Capacity limit → archive lowest-scoring overflow
-        if len(memories) - len(to_archive) > MAX_MEMORIES_PER_TYPE:
+        # Use per-store max_facts if set, otherwise fall back to global default
+        store_max = data.get("max_facts", MAX_MEMORIES_PER_TYPE)
+        if len(memories) - len(to_archive) > store_max:
             scored = []
             archive_indices = {idx for idx, _, _ in to_archive}
             for i, mem in enumerate(memories):
@@ -347,7 +349,7 @@ def run_forgetting_cycle(project: str, dry_run: bool = False) -> list[dict]:
                     text = mem.get("fact", mem.get("text", ""))
                     scored.append((i, score_memory(text, mem).composite))
             scored.sort(key=lambda x: x[1], reverse=True)
-            for idx, sc in scored[MAX_MEMORIES_PER_TYPE:]:
+            for idx, sc in scored[store_max:]:
                 to_archive.append((idx, "capacity_overflow", sc))
 
         # Deduplicate archive list
