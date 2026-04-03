@@ -124,8 +124,13 @@ def score_memory(text: str, metadata: dict) -> RetentionScore:
     }
     explicitness = explicitness_map.get(source, 0.5)
 
-    # Recency: linear decay over 90 days
-    created = metadata.get("created_at") or metadata.get("timestamp") or datetime.now().isoformat()
+    # Recency: linear decay over 45 days
+    created = metadata.get("created_at") or metadata.get("timestamp")
+    if not created:
+        # Backfill missing timestamp so this doesn't happen again
+        created = datetime.now().strftime("%Y-%m-%d")
+        metadata["timestamp"] = created
+        metadata["_timestamp_backfilled"] = True
     try:
         if isinstance(created, str) and len(created) == 10:  # "2026-03-29"
             created_dt = datetime.fromisoformat(created + "T00:00:00")
