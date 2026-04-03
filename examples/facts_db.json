@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "max_facts": 200,
+  "project": "global",
+  "last_updated": "2026-04-02T12:00:00Z",
+  "facts": [
+    {
+      "id": 1,
+      "category": "infrastructure",
+      "fact": "Cloud SQL instance at 34.75.40.169 hosts the listmagic database (shaw@listmagic.ai, project app-listmagic)",
+      "confidence": 0.95,
+      "source": "observed",
+      "timestamp": "2026-03-18",
+      "access_count": 12
+    },
+    {
+      "id": 2,
+      "category": "partner",
+      "fact": "Rob has full AudienceLab access — $0 data COGS, ~60% resolution rate, 74-column enrichment",
+      "confidence": 0.98,
+      "source": "explicit",
+      "timestamp": "2026-03-01",
+      "access_count": 8
+    },
+    {
+      "id": 3,
+      "category": "technical",
+      "fact": "IntentCore impersonation is permanent per session — must logout and re-login to switch back to parent account",
+      "confidence": 0.99,
+      "source": "observed",
+      "timestamp": "2026-03-15",
+      "access_count": 6
+    },
+    {
+      "id": 4,
+      "category": "preference",
+      "fact": "Port 5173 is always occupied — use 5174+ for Vite dev servers",
+      "confidence": 0.95,
+      "source": "feedback_pattern",
+      "timestamp": "2026-03-20",
+      "access_count": 4
+    },
+    {
+      "id": 5,
+      "category": "blocker",
+      "fact": "IntentCore companyRevenue must use 'X Million to Y Million' format, not dollar signs — payload rejected otherwise",
+      "confidence": 0.99,
+      "source": "explicit_statement",
+      "timestamp": "2026-04-02",
+      "access_count": 2
+    }
+  ]
+}

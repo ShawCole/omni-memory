@@ -1,0 +1,1424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MemoryOS — Three-Layer Persistent Memory for AI Agents by Shaw Cole</title>
+<meta name="description" content="64 memory files. 3 persistence layers. 5 context tiers. MemoryOS gives AI agents the memory they were never supposed to have.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg-primary: #08090d;
+  --bg-secondary: #0d0f14;
+  --bg-card: rgba(255, 255, 255, 0.03);
+  --bg-glass: rgba(255, 255, 255, 0.04);
+  --border: rgba(255, 255, 255, 0.06);
+  --border-bright: rgba(255, 255, 255, 0.12);
+  --text-primary: #f0f0f5;
+  --text-secondary: #8b8fa3;
+  --text-muted: #565a6e;
+  --accent: #6366f1;
+  --accent-bright: #818cf8;
+  --accent-glow: rgba(99, 102, 241, 0.15);
+  --green: #22c55e;
+  --green-glow: rgba(34, 197, 94, 0.15);
+  --amber: #f59e0b;
+  --cyan: #06b6d4;
+  --rose: #f43f5e;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'Inter', -apple-system, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.6;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Global background grid */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    linear-gradient(rgba(99, 102, 241, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(99, 102, 241, 0.03) 1px, transparent 1px);
+  background-size: 60px 60px;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* Utility */
+.container { max-width: 1200px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+.mono { font-family: 'JetBrains Mono', monospace; }
+.gradient-text {
+  background: linear-gradient(135deg, var(--accent-bright) 0%, var(--cyan) 50%, var(--green) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.section { padding: 120px 0; position: relative; }
+.section-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 16px;
+  display: block;
+}
+.section-title {
+  font-size: clamp(28px, 4vw, 44px);
+  font-weight: 800;
+  line-height: 1.15;
+  margin-bottom: 20px;
+  letter-spacing: -0.02em;
+}
+.section-desc {
+  font-size: 17px;
+  color: var(--text-secondary);
+  max-width: 640px;
+  line-height: 1.7;
+}
+
+/* Animations */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes pulse-ring {
+  0% { transform: scale(1); opacity: 0.4; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+@keyframes glow-pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.fade-up { opacity: 0; animation: fadeUp 0.8s ease forwards; }
+.fade-up-1 { animation-delay: 0.1s; }
+.fade-up-2 { animation-delay: 0.2s; }
+.fade-up-3 { animation-delay: 0.3s; }
+.fade-up-4 { animation-delay: 0.4s; }
+.fade-up-5 { animation-delay: 0.5s; }
+
+/* Scroll-triggered animations */
+[data-animate] { opacity: 0; transform: translateY(30px); transition: all 0.7s cubic-bezier(0.16, 1, 0.3, 1); }
+[data-animate].visible { opacity: 1; transform: translateY(0); }
+
+/* ============ NAV ============ */
+nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  padding: 16px 24px;
+  background: rgba(8, 9, 13, 0.8);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
+  transition: all 0.3s;
+}
+nav .nav-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+nav .logo {
+  font-weight: 800;
+  font-size: 18px;
+  letter-spacing: -0.02em;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: var(--text-primary);
+}
+nav .logo-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--cyan) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+nav .nav-links {
+  display: flex;
+  gap: 32px;
+  list-style: none;
+}
+nav .nav-links a {
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+nav .nav-links a:hover { color: var(--text-primary); }
+@media (max-width: 768px) { nav .nav-links { display: none; } }
+
+/* ============ HERO ============ */
+.hero {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  padding-top: 80px;
+  position: relative;
+  overflow: hidden;
+}
+.hero::before {
+  content: '';
+  position: absolute;
+  width: 800px;
+  height: 800px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+  top: -200px;
+  right: -200px;
+  pointer-events: none;
+}
+.hero::after {
+  content: '';
+  position: absolute;
+  width: 600px;
+  height: 600px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--green-glow) 0%, transparent 70%);
+  bottom: -100px;
+  left: -200px;
+  pointer-events: none;
+}
+.hero-content { max-width: 800px; }
+.hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  border-radius: 100px;
+  background: var(--accent-glow);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--accent-bright);
+  margin-bottom: 32px;
+}
+.hero-badge .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  position: relative;
+}
+.hero-badge .dot::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  background: var(--green);
+  animation: pulse-ring 2s ease infinite;
+}
+.hero h1 {
+  font-size: clamp(40px, 6vw, 72px);
+  font-weight: 900;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  margin-bottom: 28px;
+}
+.hero p {
+  font-size: 19px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+  max-width: 580px;
+  margin-bottom: 40px;
+}
+.hero-stats {
+  display: flex;
+  gap: 40px;
+  flex-wrap: wrap;
+}
+.hero-stat .number {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1;
+}
+.hero-stat .label {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* ============ PROBLEM ============ */
+.problem-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+  margin-top: 48px;
+}
+.problem-card {
+  padding: 32px;
+  border-radius: 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  transition: all 0.3s;
+}
+.problem-card:hover {
+  border-color: var(--border-bright);
+  background: var(--bg-glass);
+  transform: translateY(-2px);
+}
+.problem-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: rgba(244, 63, 94, 0.1);
+  border: 1px solid rgba(244, 63, 94, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  margin-bottom: 20px;
+}
+.problem-card h3 {
+  font-size: 17px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+.problem-card p {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+/* ============ THREE LAYERS ============ */
+.layers-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 24px;
+  margin-top: 48px;
+}
+.layer-card {
+  padding: 36px;
+  border-radius: 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s;
+}
+.layer-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+}
+.layer-card:nth-child(1)::before { background: linear-gradient(90deg, var(--accent), transparent); }
+.layer-card:nth-child(2)::before { background: linear-gradient(90deg, var(--cyan), transparent); }
+.layer-card:nth-child(3)::before { background: linear-gradient(90deg, var(--green), transparent); }
+.layer-card:hover {
+  border-color: var(--border-bright);
+  transform: translateY(-3px);
+}
+.layer-card .layer-icon {
+  font-size: 32px;
+  margin-bottom: 20px;
+  display: block;
+}
+.layer-card h3 {
+  font-size: 19px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+.layer-card p {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.65;
+}
+.layer-card ul {
+  list-style: none;
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.layer-card li {
+  font-size: 13px;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.layer-card li::before {
+  content: '';
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent-bright);
+  flex-shrink: 0;
+}
+
+/* ============ SOLUTION — TERMINAL + FEATURES ============ */
+.solution-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 60px;
+  align-items: center;
+  margin-top: 48px;
+}
+@media (max-width: 900px) { .solution-layout { grid-template-columns: 1fr; gap: 40px; } }
+
+.solution-features { display: flex; flex-direction: column; gap: 24px; }
+.solution-feature {
+  display: flex;
+  gap: 16px;
+  padding: 20px;
+  border-radius: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  transition: all 0.3s;
+}
+.solution-feature:hover { border-color: var(--accent); background: var(--accent-glow); }
+.solution-feature .icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--accent-glow);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 18px;
+}
+.solution-feature h4 { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+.solution-feature p { font-size: 13px; color: var(--text-secondary); line-height: 1.5; }
+
+/* Terminal mockup */
+.terminal {
+  border-radius: 16px;
+  background: #0c0e14;
+  border: 1px solid var(--border);
+  overflow: hidden;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255,255,255,0.03);
+}
+.terminal-header {
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid var(--border);
+}
+.terminal-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.terminal-dot.red { background: #ff5f57; }
+.terminal-dot.yellow { background: #febc2e; }
+.terminal-dot.green { background: #28c840; }
+.terminal-title {
+  flex: 1;
+  text-align: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.terminal-body {
+  padding: 24px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  line-height: 1.8;
+  min-height: 320px;
+}
+.terminal-line { margin-bottom: 4px; }
+.terminal-line .prompt { color: var(--green); }
+.terminal-line .cmd { color: var(--text-primary); }
+.terminal-line .output { color: var(--text-secondary); }
+.terminal-line .accent { color: var(--accent-bright); }
+.terminal-line .cyan { color: var(--cyan); }
+.terminal-line .amber { color: var(--amber); }
+.terminal-line .green-t { color: var(--green); }
+.terminal-line .rose-t { color: var(--rose); }
+
+/* ============ HOW IT WORKS — FLOW ============ */
+.flow-container { margin-top: 60px; }
+.flow-step {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  gap: 24px;
+  padding-bottom: 48px;
+  position: relative;
+}
+.flow-step:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 39px;
+  top: 64px;
+  bottom: 0;
+  width: 2px;
+  background: linear-gradient(to bottom, var(--accent), transparent);
+}
+.flow-number {
+  width: 80px;
+  height: 56px;
+  border-radius: 14px;
+  background: var(--accent-glow);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--accent-bright);
+  flex-shrink: 0;
+}
+.flow-content h3 {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+.flow-content p {
+  font-size: 15px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  max-width: 600px;
+}
+.flow-tags {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.flow-tag {
+  padding: 4px 12px;
+  border-radius: 6px;
+  background: var(--bg-glass);
+  border: 1px solid var(--border);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+/* ============ ARCHITECTURE DIAGRAM ============ */
+.arch-container {
+  margin-top: 48px;
+  padding: 40px;
+  border-radius: 20px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  position: relative;
+  overflow: hidden;
+}
+.arch-container::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 20% 30%, rgba(99, 102, 241, 0.06) 0%, transparent 50%),
+    radial-gradient(circle at 80% 70%, rgba(6, 182, 212, 0.05) 0%, transparent 50%);
+  pointer-events: none;
+}
+.arch-hub {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 40px;
+  position: relative;
+  z-index: 1;
+}
+.arch-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.arch-center-node {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--cyan) 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 60px rgba(99, 102, 241, 0.3);
+  animation: float 6s ease-in-out infinite;
+}
+.arch-center-node .icon { font-size: 36px; }
+.arch-center-node .text {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-top: 4px;
+}
+.arch-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.arch-spokes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 16px;
+  width: 100%;
+  max-width: 800px;
+}
+.arch-spoke {
+  padding: 16px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border);
+  text-align: center;
+  transition: all 0.3s;
+  position: relative;
+}
+.arch-spoke::before {
+  content: '';
+  position: absolute;
+  top: -20px;
+  left: 50%;
+  width: 1px;
+  height: 20px;
+  background: linear-gradient(to bottom, transparent, var(--border-bright));
+}
+.arch-spoke:hover { border-color: var(--accent); background: var(--accent-glow); }
+.arch-spoke .spoke-icon { font-size: 20px; margin-bottom: 6px; }
+.arch-spoke .spoke-title { font-size: 12px; font-weight: 600; }
+.arch-spoke .spoke-sub {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* ============ STATS GRID ============ */
+.built-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-top: 48px;
+}
+.built-card {
+  padding: 24px;
+  border-radius: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  text-align: center;
+  transition: all 0.3s;
+}
+.built-card:hover { border-color: var(--border-bright); transform: translateY(-2px); }
+.built-card .metric {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 36px;
+  font-weight: 800;
+  margin-bottom: 4px;
+  line-height: 1;
+}
+.built-card:nth-child(1) .metric { color: var(--accent-bright); }
+.built-card:nth-child(2) .metric { color: var(--cyan); }
+.built-card:nth-child(3) .metric { color: var(--green); }
+.built-card:nth-child(4) .metric { color: var(--amber); }
+.built-card:nth-child(5) .metric { color: var(--rose); }
+.built-card:nth-child(6) .metric { color: var(--accent-bright); }
+.built-card .metric-label {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.built-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+  margin-top: 32px;
+}
+.built-detail {
+  padding: 28px;
+  border-radius: 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+}
+.built-detail h4 {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.built-detail h4 .tag {
+  padding: 2px 10px;
+  border-radius: 6px;
+  background: var(--green-glow);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--green);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.built-detail p {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+/* ============ MEMORY TYPES ============ */
+.types-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  margin-top: 48px;
+}
+.type-card {
+  padding: 28px;
+  border-radius: 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  transition: all 0.3s;
+}
+.type-card:hover { border-color: var(--border-bright); transform: translateY(-2px); }
+.type-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  margin-bottom: 16px;
+}
+.type-card:nth-child(1) .type-icon { background: var(--accent-glow); border: 1px solid rgba(99, 102, 241, 0.2); }
+.type-card:nth-child(2) .type-icon { background: rgba(6, 182, 212, 0.1); border: 1px solid rgba(6, 182, 212, 0.2); }
+.type-card:nth-child(3) .type-icon { background: var(--green-glow); border: 1px solid rgba(34, 197, 94, 0.2); }
+.type-card:nth-child(4) .type-icon { background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.2); }
+.type-card h3 { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+.type-card .type-count {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--accent-bright);
+  margin-bottom: 8px;
+}
+.type-card p { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+
+/* ============ PIPELINE ============ */
+.pipeline {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-top: 48px;
+  overflow-x: auto;
+  padding-bottom: 16px;
+}
+.pipeline-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-width: 100px;
+  flex-shrink: 0;
+}
+.pipeline-node {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  transition: all 0.3s;
+}
+.pipeline-step:hover .pipeline-node {
+  border-color: var(--accent);
+  background: var(--accent-glow);
+  transform: translateY(-3px);
+}
+.pipeline-step .label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.3;
+}
+.pipeline-arrow {
+  font-size: 18px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  padding: 0 4px;
+}
+
+/* ============ CTA ============ */
+.cta-section {
+  padding: 120px 0;
+  text-align: center;
+  position: relative;
+}
+.cta-section::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 60% 40% at 50% 50%, var(--accent-glow) 0%, transparent 100%);
+  pointer-events: none;
+}
+.cta-section h2 {
+  font-size: clamp(28px, 4vw, 48px);
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  margin-bottom: 16px;
+}
+.cta-section p {
+  font-size: 17px;
+  color: var(--text-secondary);
+  margin-bottom: 36px;
+  max-width: 480px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.cta-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 36px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--accent) 0%, #4f46e5 100%);
+  color: white;
+  font-weight: 600;
+  font-size: 16px;
+  text-decoration: none;
+  transition: all 0.3s;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 0 30px rgba(99, 102, 241, 0.3);
+}
+.cta-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 50px rgba(99, 102, 241, 0.4);
+}
+.cta-button .arrow { transition: transform 0.2s; }
+.cta-button:hover .arrow { transform: translateX(4px); }
+
+/* ============ FOOTER ============ */
+footer {
+  padding: 40px 0;
+  border-top: 1px solid var(--border);
+  text-align: center;
+}
+footer p {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 3px; }
+
+/* ============ FRONTMATTER CODE BLOCK ============ */
+.frontmatter-block {
+  margin-top: 48px;
+  padding: 32px;
+  border-radius: 16px;
+  background: #0c0e14;
+  border: 1px solid var(--border);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  line-height: 1.9;
+  overflow-x: auto;
+}
+.frontmatter-block .line { display: block; }
+.frontmatter-block .key { color: var(--cyan); }
+.frontmatter-block .val { color: var(--green); }
+.frontmatter-block .comment { color: var(--text-muted); }
+.frontmatter-block .delim { color: var(--amber); }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-inner">
+    <a href="#" class="logo">
+      <div class="logo-icon">M</div>
+      MemoryOS
+    </a>
+    <ul class="nav-links">
+      <li><a href="#problem">Problem</a></li>
+      <li><a href="#layers">Three Layers</a></li>
+      <li><a href="#how-it-works">How It Works</a></li>
+      <li><a href="#types">Memory Types</a></li>
+      <li><a href="#built">Built</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="container">
+    <div class="hero-content">
+      <div class="hero-badge fade-up fade-up-1">
+        <span class="dot"></span>
+        64 memories active
+      </div>
+      <h1 class="fade-up fade-up-2">
+        AI agents that<br>
+        actually <span class="gradient-text">remember</span>.
+      </h1>
+      <p class="fade-up fade-up-3">
+        MemoryOS is the three-layer persistent memory system powering OrchestraOS.
+        64 structured memories across auto-memory, episodic recall, and a 5-tier
+        agent context system. No context lost. No cold starts. Ever.
+      </p>
+      <div class="hero-stats fade-up fade-up-4">
+        <div class="hero-stat">
+          <div class="number mono">64</div>
+          <div class="label">Memory Files</div>
+        </div>
+        <div class="hero-stat">
+          <div class="number mono">3</div>
+          <div class="label">Persistence Layers</div>
+        </div>
+        <div class="hero-stat">
+          <div class="number mono">5</div>
+          <div class="label">Context Tiers</div>
+        </div>
+        <div class="hero-stat">
+          <div class="number mono">250</div>
+          <div class="label">KB Knowledge Base</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PROBLEM -->
+<section class="section" id="problem">
+  <div class="container">
+    <span class="section-label" data-animate>// The Problem</span>
+    <h2 class="section-title" data-animate>Every AI session starts<br>at <em>zero</em>.</h2>
+    <p class="section-desc" data-animate>
+      You've had this conversation before. You've explained your stack, your preferences,
+      your clients, your critical payload formats. Then the context window resets and
+      you start from scratch. Again.
+    </p>
+    <div class="problem-grid">
+      <div class="problem-card" data-animate>
+        <div class="problem-icon">&#9888;</div>
+        <h3>Amnesia by Default</h3>
+        <p>LLMs have no persistent memory. Every session starts blank. Your agent doesn't know who you are, what you're building, or what mistakes to avoid. Context vanishes when the window closes.</p>
+      </div>
+      <div class="problem-card" data-animate>
+        <div class="problem-icon">&#8987;</div>
+        <h3>Repeated Corrections</h3>
+        <p>You told it not to use port 5173. You told it IntentCore uses "B2B" not true. You told it 970x250 is Tier 3. You'll tell it again tomorrow. And the day after that.</p>
+      </div>
+      <div class="problem-card" data-animate>
+        <div class="problem-icon">&#128683;</div>
+        <h3>No Cross-Session Awareness</h3>
+        <p>Agent A doesn't know what Agent B discovered. Last night's debugging session is invisible to this morning's feature build. Every agent is an island.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- THREE LAYERS -->
+<section class="section" id="layers">
+  <div class="container">
+    <span class="section-label" data-animate>// The Architecture</span>
+    <h2 class="section-title" data-animate>Three layers. Zero cold starts.</h2>
+    <p class="section-desc" data-animate>
+      Each layer serves a different time horizon and query type. Together, they give
+      every AI agent full continuity across sessions, machines, and projects.
+    </p>
+    <div class="layers-grid">
+      <div class="layer-card" data-animate>
+        <span class="layer-icon">&#128466;</span>
+        <h3>Layer 1: Auto Memory</h3>
+        <p>File-based structured memory with YAML frontmatter. 64 markdown files indexed by MEMORY.md. Four types: user, feedback, project, reference. Loaded into every Claude Code session automatically.</p>
+        <ul>
+          <li>YAML frontmatter (name, description, type)</li>
+          <li>MEMORY.md master index (37KB)</li>
+          <li>Staleness warnings on old memories</li>
+          <li>Cross-references via "See filename.md"</li>
+          <li>Auto-loaded on conversation start</li>
+        </ul>
+      </div>
+      <div class="layer-card" data-animate>
+        <span class="layer-icon">&#128270;</span>
+        <h3>Layer 2: Episodic Memory</h3>
+        <p>Semantic search across every past Claude Code conversation. Full conversation archive with text and vector search. Restores decisions, solutions, and lessons from any prior session.</p>
+        <ul>
+          <li>Semantic + text search across all sessions</li>
+          <li>Conversation archive with JSONL storage</li>
+          <li>Cross-project conversation recall</li>
+          <li>Superpowers plugin integration</li>
+          <li>"What did we discuss last week?" queries</li>
+        </ul>
+      </div>
+      <div class="layer-card" data-animate>
+        <span class="layer-icon">&#129504;</span>
+        <h3>Layer 3: Omni-Context</h3>
+        <p>5-tier agent memory system purpose-built for the Orchestra. Priorities, facts, roadmaps, handoffs, and cross-project state. Every agent reads this on startup to know exactly where things stand.</p>
+        <ul>
+          <li>context_layer.json (top-of-mind priorities)</li>
+          <li>facts_db.json (durable facts + retention scoring)</li>
+          <li>ROADMAP.md per project (authoritative status)</li>
+          <li>handoff.md (last session continuity)</li>
+          <li>Memory daemon extracts facts every 30 min</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="section" id="how-it-works">
+  <div class="container">
+    <span class="section-label" data-animate>// How It Works</span>
+    <h2 class="section-title" data-animate>From correction to<br>permanent knowledge.</h2>
+    <p class="section-desc" data-animate>
+      When you teach the system something once, it stays learned. Across sessions,
+      across agents, across machines. Here's the memory lifecycle.
+    </p>
+
+    <!-- Pipeline visual -->
+    <div class="pipeline" data-animate>
+      <div class="pipeline-step">
+        <div class="pipeline-node">&#128172;</div>
+        <span class="label">User<br>Teaches</span>
+      </div>
+      <span class="pipeline-arrow">&#8594;</span>
+      <div class="pipeline-step">
+        <div class="pipeline-node">&#128221;</div>
+        <span class="label">Classify<br>Type</span>
+      </div>
+      <span class="pipeline-arrow">&#8594;</span>
+      <div class="pipeline-step">
+        <div class="pipeline-node">&#128196;</div>
+        <span class="label">Write<br>.md File</span>
+      </div>
+      <span class="pipeline-arrow">&#8594;</span>
+      <div class="pipeline-step">
+        <div class="pipeline-node">&#128209;</div>
+        <span class="label">Index<br>MEMORY.md</span>
+      </div>
+      <span class="pipeline-arrow">&#8594;</span>
+      <div class="pipeline-step">
+        <div class="pipeline-node">&#128260;</div>
+        <span class="label">Sync<br>Omni-Context</span>
+      </div>
+      <span class="pipeline-arrow">&#8594;</span>
+      <div class="pipeline-step">
+        <div class="pipeline-node">&#129504;</div>
+        <span class="label">Agent<br>Recalls</span>
+      </div>
+      <span class="pipeline-arrow">&#8594;</span>
+      <div class="pipeline-step">
+        <div class="pipeline-node">&#9989;</div>
+        <span class="label">Never<br>Repeated</span>
+      </div>
+    </div>
+
+    <!-- Architecture diagram -->
+    <div class="arch-container" data-animate>
+      <div class="arch-hub">
+        <div class="arch-center">
+          <div class="arch-center-node">
+            <span class="icon">&#129504;</span>
+            <span class="text">Memory</span>
+          </div>
+          <span class="arch-label">MemoryOS Core</span>
+        </div>
+        <div class="arch-spokes">
+          <div class="arch-spoke">
+            <div class="spoke-icon">&#128466;</div>
+            <div class="spoke-title">Auto Memory</div>
+            <div class="spoke-sub">64 files</div>
+          </div>
+          <div class="arch-spoke">
+            <div class="spoke-icon">&#128270;</div>
+            <div class="spoke-title">Episodic</div>
+            <div class="spoke-sub">conv archive</div>
+          </div>
+          <div class="arch-spoke">
+            <div class="spoke-icon">&#127760;</div>
+            <div class="spoke-title">Omni-Context</div>
+            <div class="spoke-sub">5 tiers</div>
+          </div>
+          <div class="arch-spoke">
+            <div class="spoke-icon">&#128214;</div>
+            <div class="spoke-title">Obsidian</div>
+            <div class="spoke-sub">281+ notes</div>
+          </div>
+          <div class="arch-spoke">
+            <div class="spoke-icon">&#128260;</div>
+            <div class="spoke-title">Syncthing</div>
+            <div class="spoke-sub">Mac &#8596; VPS</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Detailed flow -->
+    <div class="flow-container">
+      <div class="flow-step" data-animate>
+        <div class="flow-number">01</div>
+        <div class="flow-content">
+          <h3>Capture</h3>
+          <p>User corrections, project state changes, client details, and infrastructure learnings are detected in real-time. The system identifies whether this is a user preference, feedback rule, project fact, or external reference.</p>
+          <div class="flow-tags">
+            <span class="flow-tag">YAML Frontmatter</span>
+            <span class="flow-tag">4 Memory Types</span>
+            <span class="flow-tag">Auto-Classification</span>
+          </div>
+        </div>
+      </div>
+      <div class="flow-step" data-animate>
+        <div class="flow-number">02</div>
+        <div class="flow-content">
+          <h3>Structure</h3>
+          <p>Each memory gets a dedicated .md file with structured frontmatter (name, description, type). Feedback memories include Why and How-to-Apply sections. Project memories track architecture, deployment status, and next steps.</p>
+          <div class="flow-tags">
+            <span class="flow-tag">Markdown + YAML</span>
+            <span class="flow-tag">Deduplication</span>
+            <span class="flow-tag">Cross-References</span>
+          </div>
+        </div>
+      </div>
+      <div class="flow-step" data-animate>
+        <div class="flow-number">03</div>
+        <div class="flow-content">
+          <h3>Index</h3>
+          <p>MEMORY.md serves as the master index, loaded at the start of every session. One-line entries under 150 characters point to detailed files. Newest first, scannable by topic. The 37KB anchor that orients every new Claude instance.</p>
+          <div class="flow-tags">
+            <span class="flow-tag">MEMORY.md</span>
+            <span class="flow-tag">200-line cap</span>
+            <span class="flow-tag">Auto-loaded</span>
+          </div>
+        </div>
+      </div>
+      <div class="flow-step" data-animate>
+        <div class="flow-number">04</div>
+        <div class="flow-content">
+          <h3>Propagate</h3>
+          <p>The memory daemon runs every 30 minutes, extracting facts from session logs and Telegram conversations into omni-context. ROADMAPs sync via Syncthing between Mac and VPS. Every agent on every machine gets the latest state.</p>
+          <div class="flow-tags">
+            <span class="flow-tag">Memory Daemon</span>
+            <span class="flow-tag">Syncthing</span>
+            <span class="flow-tag">30-min Cycle</span>
+          </div>
+        </div>
+      </div>
+      <div class="flow-step" data-animate>
+        <div class="flow-number">05</div>
+        <div class="flow-content">
+          <h3>Recall</h3>
+          <p>When a new session starts, the agent reads MEMORY.md for orientation, checks episodic memory for recent conversation context, and loads omni-context for live project state. Full continuity in under 5 seconds.</p>
+          <div class="flow-tags">
+            <span class="flow-tag">Instant Onboarding</span>
+            <span class="flow-tag">Semantic Search</span>
+            <span class="flow-tag">Staleness Checks</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- MEMORY TYPES -->
+<section class="section" id="types">
+  <div class="container">
+    <span class="section-label" data-animate>// Memory Types</span>
+    <h2 class="section-title" data-animate>Four types. Each with a job.</h2>
+    <p class="section-desc" data-animate>
+      Not all knowledge is equal. The system classifies every memory by type so
+      agents know what to trust, when to verify, and how to apply it.
+    </p>
+    <div class="types-grid" data-animate>
+      <div class="type-card">
+        <div class="type-icon">&#128100;</div>
+        <h3>User</h3>
+        <div class="type-count">1 FILE</div>
+        <p>Who Shaw is, where he is, how he works. Location, timezone, communication preferences. Shapes every interaction to match the operator's context and expertise level.</p>
+      </div>
+      <div class="type-card">
+        <div class="type-icon">&#128161;</div>
+        <h3>Feedback</h3>
+        <div class="type-count">13 FILES</div>
+        <p>Hard-won lessons and corrections. "Don't use port 5173." "IntentCore b2b is a string, not boolean." "970x250 is ONLY Tier 3." Each one prevents a repeated mistake and includes the reason why.</p>
+      </div>
+      <div class="type-card">
+        <div class="type-icon">&#128640;</div>
+        <h3>Project</h3>
+        <div class="type-count">21 FILES</div>
+        <p>Live state of every active project. Architecture, deployment endpoints, what's built vs. what's missing, P0 task lists, dependencies, blockers. The source of truth for "where are we?"</p>
+      </div>
+      <div class="type-card">
+        <div class="type-icon">&#128279;</div>
+        <h3>Reference</h3>
+        <div class="type-count">29 FILES</div>
+        <p>Pointers to external systems — Linear projects, Grafana dashboards, Obsidian notes, partner profiles, client details. Where to find information that lives outside the codebase.</p>
+      </div>
+    </div>
+
+    <!-- Frontmatter example -->
+    <div class="frontmatter-block" data-animate>
+      <span class="line"><span class="delim">---</span></span>
+      <span class="line"><span class="key">name:</span> <span class="val">IntentCore impersonation switches accounts permanently</span></span>
+      <span class="line"><span class="key">description:</span> <span class="val">After impersonating into a sub-account, you ARE that account. Must logout and re-login.</span></span>
+      <span class="line"><span class="key">type:</span> <span class="val">feedback</span></span>
+      <span class="line"><span class="delim">---</span></span>
+      <span class="line">&nbsp;</span>
+      <span class="line"><span class="comment">## Rule</span></span>
+      <span class="line">After impersonating into an IntentCore sub-account, the session is <span class="accent">permanently switched</span>.</span>
+      <span class="line">There is no "go back" button. You must <span class="rose-t">logout</span> and <span class="green-t">re-login</span> as shaw@strategysimple.com.</span>
+      <span class="line">&nbsp;</span>
+      <span class="line"><span class="comment">## Why</span></span>
+      <span class="line">Burned 45 minutes creating audiences under the wrong tenant. Payload went to ACG instead of SalesMatch.</span>
+      <span class="line">&nbsp;</span>
+      <span class="line"><span class="comment">## How to Apply</span></span>
+      <span class="line">Always check the account name in the top-right before running VacuumEngine.</span>
+    </div>
+  </div>
+</section>
+
+<!-- WHAT'S BEEN BUILT -->
+<section class="section" id="built">
+  <div class="container">
+    <span class="section-label" data-animate>// What's Been Built</span>
+    <h2 class="section-title" data-animate>This isn't a concept.<br>It's a <span class="gradient-text">running system</span>.</h2>
+    <p class="section-desc" data-animate>
+      Every component listed here is built, deployed, and in production use across
+      OrchestraOS today. The memory system onboards any new Claude instance in under 5 minutes.
+    </p>
+    <div class="built-grid" data-animate>
+      <div class="built-card">
+        <div class="metric">64</div>
+        <div class="metric-label">Memory Files</div>
+      </div>
+      <div class="built-card">
+        <div class="metric">250</div>
+        <div class="metric-label">KB Knowledge</div>
+      </div>
+      <div class="built-card">
+        <div class="metric">21</div>
+        <div class="metric-label">Projects Tracked</div>
+      </div>
+      <div class="built-card">
+        <div class="metric">13</div>
+        <div class="metric-label">Feedback Rules</div>
+      </div>
+      <div class="built-card">
+        <div class="metric">281</div>
+        <div class="metric-label">Obsidian Notes</div>
+      </div>
+      <div class="built-card">
+        <div class="metric">5</div>
+        <div class="metric-label">Context Tiers</div>
+      </div>
+    </div>
+    <div class="built-details" data-animate>
+      <div class="built-detail">
+        <h4>Auto Memory Engine <span class="tag">Complete</span></h4>
+        <p>64 structured markdown files with YAML frontmatter, indexed by a 37KB MEMORY.md master document. Four memory types (user, feedback, project, reference) with automatic staleness warnings and cross-reference linking.</p>
+      </div>
+      <div class="built-detail">
+        <h4>Episodic Recall <span class="tag">Complete</span></h4>
+        <p>Full conversation archive with semantic and text search via the Superpowers episodic-memory plugin. Query any prior session by topic, date, or content. Restores decisions, solutions, and debugging context across conversations.</p>
+      </div>
+      <div class="built-detail">
+        <h4>Omni-Context 5-Tier <span class="tag">Complete</span></h4>
+        <p>Global priorities, durable facts with retention scoring, per-project ROADMAPs, session handoffs, and cross-project relationships. Memory daemon extracts facts from logs and Telegram every 30 minutes automatically.</p>
+      </div>
+      <div class="built-detail">
+        <h4>Obsidian Knowledge Vault <span class="tag">Complete</span></h4>
+        <p>281+ notes organized by project in ~/ALL_CONTEXT/. Synced bi-directionally between Mac and VPS via Syncthing. Research, session logs, competitive analysis, roadmaps, and client documentation all interconnected.</p>
+      </div>
+      <div class="built-detail">
+        <h4>Cross-Machine Sync <span class="tag">Complete</span></h4>
+        <p>Syncthing replaces rsync for real-time vault synchronization. Mac and VPS stay identical. Any agent on any machine reads the same ground truth. No conflicts, no stale state, no manual sync commands.</p>
+      </div>
+      <div class="built-detail">
+        <h4>Memory Routing (WIP) <span class="tag">In Progress</span></h4>
+        <p>Wiring episodic-memory and Obsidian search into the GM so it can route queries correctly: "What did we discuss?" goes to episodic, "Check ArkData notes" goes to Obsidian, "What's the status?" goes to omni-context.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TERMINAL SHOWCASE -->
+<section class="section">
+  <div class="container">
+    <span class="section-label" data-animate>// In Action</span>
+    <h2 class="section-title" data-animate>What memory looks like<br>from the inside.</h2>
+    <p class="section-desc" data-animate>
+      A new Claude Code session opens. Before you type a word, the agent already
+      knows your entire world.
+    </p>
+    <div class="solution-layout" data-animate>
+      <div class="solution-features">
+        <div class="solution-feature">
+          <div class="icon">&#128466;</div>
+          <div>
+            <h4>Instant Orientation</h4>
+            <p>MEMORY.md loads automatically with every session start. 50+ project blocks, contact profiles, and critical protocols &mdash; all pre-loaded.</p>
+          </div>
+        </div>
+        <div class="solution-feature">
+          <div class="icon">&#128161;</div>
+          <div>
+            <h4>Mistake Prevention</h4>
+            <p>13 feedback memories encode hard-won lessons. The agent knows about the impersonation trap, the port conflict, the payload format. Before you hit it again.</p>
+          </div>
+        </div>
+        <div class="solution-feature">
+          <div class="icon">&#128270;</div>
+          <div>
+            <h4>Conversation Recall</h4>
+            <p>Episodic memory searches across every past session. "What approach did we try last Tuesday?" returns the exact exchange with file paths and decisions.</p>
+          </div>
+        </div>
+        <div class="solution-feature">
+          <div class="icon">&#128260;</div>
+          <div>
+            <h4>Cross-Agent Continuity</h4>
+            <p>The memory daemon syncs facts every 30 minutes. Agent A's discovery is Agent B's starting knowledge. No re-explaining. No information silos.</p>
+          </div>
+        </div>
+        <div class="solution-feature">
+          <div class="icon">&#128202;</div>
+          <div>
+            <h4>Freshness Awareness</h4>
+            <p>Every memory carries a timestamp. Memories older than 7 days trigger staleness warnings. The agent knows to verify before asserting stale state as current truth.</p>
+          </div>
+        </div>
+      </div>
+      <div class="terminal">
+        <div class="terminal-header">
+          <div class="terminal-dot red"></div>
+          <div class="terminal-dot yellow"></div>
+          <div class="terminal-dot green"></div>
+          <div class="terminal-title">claude-code ~ new session</div>
+        </div>
+        <div class="terminal-body">
+          <div class="terminal-line"><span class="prompt">shaw@mac $</span> <span class="cmd">claude</span></div>
+          <div class="terminal-line"><span class="output">&nbsp;</span></div>
+          <div class="terminal-line"><span class="accent">&#9679; Loading MEMORY.md</span> <span class="output">37KB indexed</span></div>
+          <div class="terminal-line"><span class="cyan">&#9679; Auto-memory</span> <span class="output">64 files loaded</span></div>
+          <div class="terminal-line"><span class="cyan">&#9679; Episodic</span> <span class="output">archive connected</span></div>
+          <div class="terminal-line"><span class="cyan">&#9679; Omni-context</span> <span class="output">5 tiers synced</span></div>
+          <div class="terminal-line"><span class="output">&nbsp;</span></div>
+          <div class="terminal-line"><span class="output">  Known projects:</span> <span class="accent">21</span></div>
+          <div class="terminal-line"><span class="output">  Feedback rules:</span> <span class="accent">13</span></div>
+          <div class="terminal-line"><span class="output">  User context:</span> <span class="green-t">Shaw (London, BST)</span></div>
+          <div class="terminal-line"><span class="output">  Stale memories:</span> <span class="amber">8 (30+ days)</span></div>
+          <div class="terminal-line"><span class="output">&nbsp;</span></div>
+          <div class="terminal-line"><span class="prompt">shaw@mac $</span> <span class="cmd">build SalesMatch audience</span></div>
+          <div class="terminal-line"><span class="output">  Recalling: SalesMatch Explorer context</span></div>
+          <div class="terminal-line"><span class="output">  Applying: payload-corrections-apr2.md</span></div>
+          <div class="terminal-line"><span class="output">  Checking: impersonation flow &#8594;</span> <span class="green-t">&#10003; correct tenant</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+  <div class="container">
+    <h2 class="fade-up" data-animate>AI without memory is<br>just an <span class="gradient-text">expensive parrot</span>.</h2>
+    <p data-animate>MemoryOS gives your agents the persistence they need to actually compound knowledge over time. Built as the cognitive layer of OrchestraOS.</p>
+    <a href="https://t.me/ShawCole" class="cta-button" data-animate>
+      See OrchestraOS in action
+      <span class="arrow">&#8594;</span>
+    </a>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="container">
+    <p>Built by Shaw Cole &middot; MemoryOS &middot; Part of OrchestraOS &middot; 2026</p>
+  </div>
+</footer>
+
+<script>
+// Scroll-triggered animations
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+    }
+  });
+}, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+
+document.querySelectorAll('[data-animate]').forEach(el => observer.observe(el));
+
+// Smooth nav background
+window.addEventListener('scroll', () => {
+  const nav = document.querySelector('nav');
+  const scroll = window.scrollY;
+  if (scroll > 100) {
+    nav.style.background = 'rgba(8, 9, 13, 0.95)';
+  } else {
+    nav.style.background = 'rgba(8, 9, 13, 0.8)';
+  }
+});
+
+// Counter animation for hero stats
+function animateCounter(el, target) {
+  let current = 0;
+  const increment = target / 40;
+  const timer = setInterval(() => {
+    current += increment;
+    if (current >= target) {
+      current = target;
+      clearInterval(timer);
+    }
+    el.textContent = Math.floor(current);
+  }, 30);
+}
+
+const statObserver = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      const numberEl = entry.target;
+      const target = parseInt(numberEl.textContent);
+      animateCounter(numberEl, target);
+      statObserver.unobserve(numberEl);
+    }
+  });
+}, { threshold: 0.5 });
+
+document.querySelectorAll('.hero-stat .number').forEach(el => statObserver.observe(el));
+</script>
+</body>
+</html>

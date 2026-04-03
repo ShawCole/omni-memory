@@ -1,6 +1,10 @@
 # Omni-Memory: 5-Phase 3-Surface Agent Memory System
 
-A production implementation of the ["Memory as Infrastructure"](https://patch-foe-06d.notion.site/Memory-as-Infrastructure-Building-Intelligent-State-Management-for-AI-Agents-with-LangGraph) pattern for autonomous AI agent orchestration. Built for [OrchestraOS](https://github.com/ShawCole) — a multi-agent system running 20+ projects across Mac + VPS via Tailscale mesh.
+> **Live explainer:** [memoryos-vision.netlify.app](https://memoryos-vision.netlify.app)
+
+A production implementation of the ["Memory as Infrastructure"](https://patch-foe-06d.notion.site/Memory-as-Infrastructure-Building-Intelligent-State-Management-for-AI-Agents-with-LangGraph) pattern for autonomous AI agent orchestration. Built for [OrchestraOS](https://orchestraos-vision.netlify.app) — a multi-agent system running 20+ projects across Mac + VPS via Tailscale mesh.
+
+---
 
 ## The Problem
 
@@ -9,6 +13,40 @@ Every AI agent session forgets everything when it ends. Copy-pasting conversatio
 ## The Solution
 
 Real memory is a lifecycle: **score, compress, forget, govern.** This system implements the 5-phase memory architecture from LangGraph/LangMem research, surfaced through 3 cognitive surfaces that agents read and write to.
+
+---
+
+## What's In This Package
+
+```
+omni-memory/
+├── README.md                  # You are here
+├── SETUP.md                   # Step-by-step setup guide (10 min)
+├── ARCHITECTURE.md            # Full 5-layer 3-phase technical reference
+├── ARTICLE.md                 # Source material: "Memory as Infrastructure" (LangGraph)
+│
+├── skill/
+│   └── SKILL.md               # Claude Code skill — drop into any agent session
+│
+├── src/
+│   ├── memory_daemon.py       # Phase 1+2+5: async extraction + consolidation daemon
+│   ├── memory_lifecycle.py    # Phase 4: retention scoring, compression, forgetting, integrity
+│   └── token_enforcer.py      # Phase 2: scoped payload builder with tier budgets
+│
+├── examples/
+│   ├── context_layer.json     # Example 3-surface context (the "who/what/now")
+│   ├── facts_db.json          # Example fact store with 5 real entries
+│   └── handoff.md             # Example session handoff document
+│
+├── scripts/
+│   └── scaffold.sh            # One-command directory setup
+│
+└── site/
+    ├── index.html             # MemoryOS vision landing page (Netlify-ready)
+    └── netlify.toml            # Deploy config with security headers
+```
+
+---
 
 ## The 5 Phases
 
@@ -29,21 +67,6 @@ Every agent interacts with memory through 3 cognitive surfaces in `context_layer
 | **top_of_mind** | High — update every session | Blockers, deadlines, active deals, urgent priorities |
 | **work_context** | Low — update on structural changes | Identity, companies, partnerships, revenue model |
 | **personal_context** | Medium — update on state changes | Location, travel, timezone, working style |
-
-## Repo Structure
-
-```
-omni-memory/
-├── README.md              # This file
-├── ARTICLE.md             # Original "Memory as Infrastructure" Notion article (source material)
-├── ARCHITECTURE.md        # Full 5-layer 3-phase technical architecture reference
-├── skill/
-│   └── SKILL.md           # Claude Code skill — embed into any agent session
-└── src/
-    ├── memory_lifecycle.py # Phase 4: retention scoring, compression, forgetting, integrity, governance
-    ├── memory_daemon.py    # Phase 1+2+5: async extraction + consolidation daemon
-    └── token_enforcer.py   # Phase 2: scoped payload builder with tier budgets
-```
 
 ## How It Works
 
@@ -78,28 +101,53 @@ Composite below **0.4** = forgotten. Above **0.7** = safe.
 ## Agent Tier System
 
 ```
-              Shaw (human)
+              You (human)
                   │
             GM (T0 — 4,000 tokens)
             ┌─────┼─────┐
          PM-Prod PM-Cli PM-Infra  (T1 — 3,000 tokens)
          ┌──┼──┐  ┌─┼─┐  ┌──┼──┐
-        [LM][Ark] [Am][DC] [VPS][Dash]  (T2 — 2,000 tokens)
+        [Proj] [Proj] [Proj] [Proj]  (T2 — 2,000 tokens)
               Workers  (T3 — 500 tokens)
 ```
+
+---
+
+## Quick Start
+
+```bash
+# 1. Clone
+git clone https://github.com/ShawCole/omni-memory.git
+cd omni-memory
+
+# 2. Scaffold the directory structure
+./scripts/scaffold.sh
+
+# 3. Edit your 3 surfaces
+vi ~/scripts/omni-context/global/context_layer.json
+
+# 4. Install the Claude Code skill
+cp skill/SKILL.md ~/.claude/skills/omni-memory.md
+
+# 5. Run a consolidation cycle
+python3 src/memory_lifecycle.py consolidate --all
+
+# 6. (Optional) Start the daemon
+python3 src/memory_daemon.py &
+```
+
+See **[SETUP.md](SETUP.md)** for the full guide.
+
+---
 
 ## Origin
 
 Built March 2026 during a single 3+ hour Claude Code session after analyzing the Notion article ["Memory as Infrastructure: Building Intelligent State Management for AI Agents with LangGraph"](https://patch-foe-06d.notion.site/Memory-as-Infrastructure-Building-Intelligent-State-Management-for-AI-Agents-with-LangGraph) (60,375 chars). The article provided the theoretical framework; this repo is the production implementation adapted for OrchestraOS's multi-agent, multi-machine architecture.
 
-## Using the Skill
+## Deployed
 
-Copy `skill/SKILL.md` into your Claude Code plugin's `skills/` directory. It teaches any Claude agent to:
-
-1. **Read** the 3 surfaces + project context on session start
-2. **Write** durable facts during work (semantic/episodic/procedural)
-3. **Update** surfaces when priorities shift
-4. **Handoff** before session end (mandatory, structured format)
+- **Vision page:** [memoryos-vision.netlify.app](https://memoryos-vision.netlify.app)
+- **OrchestraOS:** [orchestraos-vision.netlify.app](https://orchestraos-vision.netlify.app)
 
 ## License
 
